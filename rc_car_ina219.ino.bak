@@ -1,0 +1,100 @@
+#include <Wire.h>
+#include <Adafruit_INA219.h>
+
+// ===== SKRĘT (NIEUŻYWANY TERAZ) =====
+const int STEER_IN1 = 3;
+const int STEER_IN2 = 5;
+
+// ===== JAZDA (PRZÓD / TYŁ) =====
+const int DRIVE_IN1 = 6;
+const int DRIVE_IN2 = 9;
+
+// ===== GAZ / RAMP-UP =====
+const int MIN_SPEED  = 0;
+const int MAX_SPEED  = 250;   // jak ustaliłeś
+const int SPEED_STEP = 2;     // wolne przyspieszanie
+const int STEP_DELAY = 120;   // ms
+
+Adafruit_INA219 ina219;
+
+void setup() {
+  Serial.begin(9600);
+
+  // czekaj na Serial (ważne dla Pro Mini)
+  unsigned long start = millis();
+  while (!Serial && millis() - start < 3000) {}
+
+  Serial.println();
+  Serial.println("=== START RC CAR ===");
+
+  // ===== PINY =====
+  pinMode(STEER_IN1, OUTPUT);
+  pinMode(STEER_IN2, OUTPUT);
+  pinMode(DRIVE_IN1, OUTPUT);
+  pinMode(DRIVE_IN2, OUTPUT);
+
+  // kierunek jazdy: PRZÓD
+  digitalWrite(DRIVE_IN2, LOW);
+
+  // ===== I2C + INA219 =====
+  Serial.println("Init I2C...");
+  Wire.begin();
+
+  Serial.println("Init INA219...");
+  if (!ina219.begin()) {
+    Serial.println("BLAD: INA219 nie wykryty!");
+    while (1) {
+      Serial.println("HALT");
+      delay(1000);
+    }
+  }
+
+  // opcjonalnie: zakres 32V / 2A
+  ina219.setCalibration_32V_2A();
+
+  Serial.println("INA219 OK");
+  Serial.println("====================");
+}
+
+void loop() {
+  Serial.println();
+  Serial.println("Ramp-up START");
+
+  // ===== POWOLNE PRZYSPIESZANIE =====
+  for (int speed = MIN_SPEED; speed <= MAX_SPEED; speed += SPEED_STEP) {
+    analogWrite(DRIVE_IN1, speed);
+
+    // ===== ODCZYT INA219 =====
+    float voltage = ina219.getBusVoltage_V();
+    float current = ina219.getCurrent_mA();
+    float power   = ina219.getPower_mW();
+
+    Serial.print("PWM=");
+    Serial.print(speed);
+    Serial.print(" | V=");
+    Serial.print(voltage, 2);
+    Serial.print(" V | I=");
+    Serial.print(current, 0);
+    Serial.print(" mA | P=");
+    Serial.print(power, 0);
+    Serial.println(" mW");
+
+    delay(STEP_DELAY);
+  }
+
+  // ===== STOP =====
+  analogWrite(DRIVE_IN1, 0);
+  Serial.println("STOP");
+  delay(3000);
+}
+
+// ===== FUNKCJE SKRĘTU (NA PÓŹNIEJ) =====
+void steerLeft() {
+  analogWrite(STEER_IN1, 150);
+  digitalWrite(STEER_IN2, LOW);
+}
+
+void steerRight() {
+  digitalWrite(STEER_IN1, LOW);
+  analogWrite(STEER_IN2, 150);
+}
